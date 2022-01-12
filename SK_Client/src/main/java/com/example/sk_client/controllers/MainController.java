@@ -1,7 +1,5 @@
 package com.example.sk_client.controllers;
 
-import com.example.sk_client.controllers.GuestController;
-import com.example.sk_client.controllers.HostController;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -15,7 +13,6 @@ import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.net.ConnectException;
 
 public class MainController {
     @FXML Button buttonGuest;
@@ -24,17 +21,31 @@ public class MainController {
     Alert popup = new Alert(Alert.AlertType.WARNING,"Nie podano nazwy pokoju.",ButtonType.OK);
     Alert popupOut = new Alert(Alert.AlertType.WARNING, "Wyrzucono Cie z pokoju.",ButtonType.OK);
     Alert popupTimeout = new Alert(Alert.AlertType.ERROR, "Nastapilo rozlaczenie z serwerem!", ButtonType.OK);
+    Alert popupFailedJoin = new Alert(Alert.AlertType.ERROR, "Nie udalo sie dolaczyc do pokoju!",ButtonType.OK);
+    Alert popupFailedCreate = new Alert(Alert.AlertType.ERROR, "Nie udalo sie stworzyc pokoju!",ButtonType.OK);
+
+
+//    public void setEverything() {
+//        try {
+//            this.IP = String.valueOf(InetAddress.getLocalHost());
+//            this.IP = IP.substring(IP.indexOf("/") + 1);
+//            this.klient = new Klient(IP);
+//            this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
+//        } catch (UnknownHostException e) {
+//            e.printStackTrace();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
     @FXML public void wyrzucenie(Integer co){
         switch (co) {
-            case 1:
-                popupOut.showAndWait();
-                break;
-            case 2:
-                popupTimeout.showAndWait();
-                break;
-            default:
-                break;
+            case 1 -> popupOut.showAndWait();
+            case 2 -> popupTimeout.showAndWait();
+            case 3 -> popupFailedJoin.showAndWait();
+            case 4 -> popupFailedCreate.showAndWait();
+            default -> {
+            }
         }
     }
 
@@ -72,7 +83,7 @@ public class MainController {
                 Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
                 stage.setScene(scene);
                 stage.show();
-            } catch (NullPointerException e) {
+            }catch (NullPointerException e){
             }
         }
     }

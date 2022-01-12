@@ -14,11 +14,18 @@ public class Klient {
     WaitForMessage waitForMessage;
     TextArea receive;
     Socket clientSocket = null;
+    Thread thread;
     Alert popup = new Alert(Alert.AlertType.ERROR,"Serwer nie odpowiada lub jest wylaczony!", ButtonType.OK);
 
     public Klient(String host, TextArea receive) {
         this.IP = host;
         this.receive = receive;
+        activate();
+    }
+
+    public Klient(String host){
+        this.IP = host;
+        this.receive = null;
         activate();
     }
 
@@ -33,13 +40,18 @@ public class Klient {
         return clientSocket;
     }
 
+    public void closeSocket() throws IOException {
+        thread.interrupt();
+        clientSocket.close();
+    }
+
     public void activate(){
         try {
             Socket help = getSocket();
             waitForMessage = new WaitForMessage(help, receive, IP);
-            Thread thread = new Thread(waitForMessage);
+            thread = new Thread(waitForMessage);
             thread.start();
-        } catch (IOException ex) {
+        } catch (IOException e) {
             popup.showAndWait();
         }
     }

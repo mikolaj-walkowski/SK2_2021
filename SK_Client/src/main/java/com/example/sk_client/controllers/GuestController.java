@@ -32,17 +32,24 @@ public class GuestController {
         this.tytul.setText("Pokoj " + nazwa);
         this.klient = new Klient(IP, czat);
         this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
+        String inputText = "join "+nazwa;
+        writer.println(inputText);
     }
 
     @FXML protected void wyslijWiadomosc(ActionEvent event){
         if(!(wiadomosc.getText() == null) && !wiadomosc.getText().trim().isEmpty()) {
             String inputText = this.wiadomosc.getText();
+            String inputSize = "msg_size "+inputText.length();
+            this.writer.println(inputSize);
+            inputText = "msg "+inputText;
             this.writer.println(inputText);
             this.wiadomosc.clear();
         }
     }
 
     @FXML protected void toMain(ActionEvent event) throws IOException{
+        writer.println("leave");
+        klient.closeSocket();
         Parent parent = (Parent) FXMLLoader.load(this.getClass().getResource("/com/example/sk_client/main_page.fxml"));
         Scene scene = new Scene(parent);
         Stage stage = (Stage) ((Node)event.getSource()).getScene().getWindow();

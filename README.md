@@ -10,15 +10,15 @@ Wysłanie wiadomości klient -> serwer:
 
 Kickowanie admin -> serwer
 - [k] kick %ip
-- [s/err] failed
-- [s/noerr] success
+- [s/err] failed kick
+- [s/noerr] success kick
 
 Kickowanie serwer -> client
 - [s] kick
 
 Dołączenie do pokoju: (jeżeli jesteś już w pokoju to automatycznie wyrzucam cie z poprzedniego)
 - [k] join %nazwa
-- [s/err] failed
+- [s/err] failed join
 - [s/noerr] success
 
 Opuszcenie pokoju:
@@ -28,7 +28,7 @@ Opuszcenie pokoju:
 
 Tworzenie pokoju: 
 - [k] create %nazwa
-- [s/err] failed
+- [s/err] failed create
 - [s/noerr] success
 
 
