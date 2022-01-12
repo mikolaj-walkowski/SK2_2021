@@ -8,6 +8,8 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.TextArea;
 import javafx.stage.Stage;
 import javafx.stage.Window;
@@ -16,6 +18,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.SocketException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.List;
@@ -25,9 +28,13 @@ public class WaitForMessage implements Runnable {
     private final BufferedReader reader;
     private final TextArea chat;
     private final String IP;
+    private final Socket socket;
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    Alert popup1 = new Alert(Alert.AlertType.CONFIRMATION, "Uzytkownik zostal wyrzucony z pokoju.", ButtonType.OK);
+    Alert popup2 = new Alert(Alert.AlertType.ERROR, "Uzytkownik nie zostal wyrzucony z pokoju.", ButtonType.OK);
 
     public WaitForMessage(Socket clientSocket, TextArea chat, String ip) throws IOException {
+        this.socket = clientSocket;
         this.reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         this.chat = chat;
         this.IP = ip;
@@ -48,43 +55,82 @@ public class WaitForMessage implements Runnable {
     public void run() {
         boolean loop = true;
         Integer co = null;
-        String ohno = "kick "+IP;
-        while (loop) {
+        while (loop && !Thread.currentThread().isInterrupted()) {
             try {
                 String help = chat.getText();
                 String serverMessage = this.reader.readLine();
-                if(serverMessage == null){
+                if (serverMessage == null) {
                     loop = false;
                     co = 2;
                     Integer finalCo = co;
-                    Platform.runLater(()-> {
+                    socket.close();
+                    Platform.runLater(() -> {
                         try {
                             toMain(finalCo);
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     });
-                }
-                else if(serverMessage.equals(ohno)){
-                    loop = false;
-                    co = 1;
-                    Integer finalCo = co;
-                    Platform.runLater(()-> {
-                        try {
-                            toMain(finalCo);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    });
-                }
-                else {
-                    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-                    help = help + format.format(timestamp) + ": " + serverMessage + "\n";
-                    chat.setText(help);
+                } else {
+                    switch (serverMessage) {
+                        case "failed join":
+                            loop = false;
+                            co = 3;
+                            Integer finalCo = co;
+                            socket.close();
+                            Platform.runLater(() -> {
+                                try {
+                                    toMain(finalCo);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            break;
+                        case "failed create":
+                            loop = false;
+                            co = 4;
+                            finalCo = co;
+                            socket.close();
+                            Platform.runLater(() -> {
+                                try {
+                                    toMain(finalCo);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            break;
+                        case "failed kick":
+                            Platform.runLater(()->popup2.showAndWait());
+                            break;
+                        case "success kick":
+                            Platform.runLater(()->popup1.showAndWait());
+                            break;
+                        case "kick":
+                            loop = false;
+                            co = 1;
+                            finalCo = co;
+                            socket.close();
+                            Platform.runLater(() -> {
+                                try {
+                                    toMain(finalCo);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            break;
+                    }
+                    if (serverMessage.startsWith("msg ")) {
+                        serverMessage = serverMessage.substring(4);
+                        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                        help = help + format.format(timestamp) + " by " + serverMessage + "\n";
+                        chat.setText(help);
+                        chat.setScrollTop(Double.MAX_VALUE);
+                    }
                 }
             } catch (IOException exc) {
-                System.out.println(exc);
-                exc.printStackTrace();
+                if(!exc.getLocalizedMessage().equals("Socket closed")){
+                    exc.printStackTrace();
+                }
             }
         }
     }

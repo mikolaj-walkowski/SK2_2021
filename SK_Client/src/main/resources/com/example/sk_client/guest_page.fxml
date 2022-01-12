@@ -25,7 +25,7 @@
           <RowConstraints maxHeight="1.7976931348623157E308" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES" />
         </rowConstraints>
          <children>
-            <TextArea fx:id="czat" editable="false" prefHeight="134.0" prefWidth="439.0" />
+            <TextArea fx:id="czat" editable="false" prefHeight="134.0" prefWidth="439.0" wrapText="true" />
             <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
                <children>
                   <Region HBox.hgrow="ALWAYS" />
