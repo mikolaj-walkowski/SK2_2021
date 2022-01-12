@@ -39,7 +39,7 @@ public class GuestController {
     @FXML protected void wyslijWiadomosc(ActionEvent event){
         if(!(wiadomosc.getText() == null) && !wiadomosc.getText().trim().isEmpty()) {
             String inputText = this.wiadomosc.getText();
-            String inputSize = "msg-size "+inputText.length();
+            String inputSize = "msg_size "+inputText.length();
             this.writer.println(inputSize);
             inputText = "msg "+inputText;
             this.writer.println(inputText);
