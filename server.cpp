@@ -113,7 +113,7 @@ class Room
 std::map<int, Client *> clients;
 
 //struktura zawierająca dane, które zostaną przekazane do wątku
-struct thread_data _t
+struct thread_data_t
 {
     Client* client;
 };
