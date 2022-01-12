@@ -2,6 +2,7 @@
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -11,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <pthread.h>
 #include <vector>
 #include <string>
 #include <map>
@@ -20,49 +20,53 @@
 
 #define MAX_EVENTS 10
 
-struct epoll_event ev, events[10];
+struct epoll_event ev, events[MAX_EVENTS];
 int nfds, epollfd;
 
 enum client_states
-{
-};
+{   };
+class Room;
 
-struct Client
+class Client
 {
+public:
     int fd;
     client_states cs;
     std::string ip;
+    Room* currRoom;
+    Client(int _fd, std::string _ip):fd(_fd), ip(_ip){
+        currRoom=NULL;
+    }
+
 };
 
 class Room
 {
     std::vector<Client *> room_clients;
     std::vector<std::pair<std::string, std::string>> chatLog;
+    public:
     struct Client *owner;
-    pthread_mutex_t operating;
     void addClient(Client *cl)
     {
-        pthread_mutex_lock(&operating);
         room_clients.push_back(cl);
-        pthread_mutex_unlock(&operating);
+    }
+    void removeClient(Client* client){
+        for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++){
+            if((*itr) == client){
+                room_clients.erase(itr);
+            }
+        }
     }
     void broadcastMsg(Client *cl, std::string msg)
     {
-        pthread_mutex_lock(&operating);
         chatLog.push_back(std::make_pair(cl->ip, msg));
         for (auto itr : room_clients)
         {
             if (cl != itr)
             {
-                char buff[100];
-                sprintf(buff, "msg-size %d", msg.length());
-                if (write(itr->fd, buff, 100) == -1)
-                {
-                    perror("Couldnt write to socket");
-                }
-                int size = cl->ip.length() + msg.length() + 5;
+                int size = cl->ip.length() + msg.length() + 6;
                 char *buff2 = new char[size];
-                sprintf(buff2, "msg %s %s", cl->ip, msg);
+                sprintf(buff2, "msg %s: %s", cl->ip, msg);
                 if (write(itr->fd, buff2, size) == -1)
                 {
                     perror("Couldnt write to socket");
@@ -70,63 +74,46 @@ class Room
                 delete [] buff2;
             }
         }
-        pthread_mutex_unlock(&operating);
     }
     void kickClient(std::string ip)
     {
-        pthread_mutex_lock(&operating);
         for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
             if ((*itr)->ip == ip)
             {
+                char *buff = "kick";
+                if(write((*itr)->fd, buff, 4) == -1)
+                {
+                    perror("Couldnt write to socket");
+                }
                 room_clients.erase(itr);
             }
-        pthread_mutex_unlock(&operating);
     }
     void sendChatLog(Client *cl)
     {
-        pthread_mutex_lock(&operating);
         for (auto itr : chatLog)
         {
-            char buff[100];
-            sprintf(buff, "msg-size %d", itr.second.length());
-            if (write(cl->fd, buff, 100) == -1)
-            {
-                perror("Couldnt write to socket");
-            }
-            int size = itr.first.length() + itr.second.length() + 5;
+            int size = itr.first.length() + itr.second.length() + 6;
             char *buff2 = new char[size];
-            sprintf(buff2, "msg %s %s", itr.first , itr.second);
+            sprintf(buff2, "msg %s: %s", itr.first , itr.second);
             if (write(cl->fd, buff2, size) == -1)
             {
                 perror("Couldnt write to socket");
             }
             delete [] buff2;
         }
-        pthread_mutex_unlock(&operating);
     }
     Room(Client *ow) : owner(ow)
     {
-        pthread_mutex_init(&operating, NULL);
+        
     }
 };
 
 std::map<int, Client *> clients;
+std::vector<Room*> rooms;
 
 //struktura zawierająca dane, które zostaną przekazane do wątku
-struct thread_data_t
-{
-    Client* client;
-};
+void handleClient(Client* client){
 
-//funkcja opisującą zachowanie wątku - musi przyjmować argument typu (void *) i zwracać (void *)
-void *ThreadBehavior(void *t_data)
-{
-    pthread_detach(pthread_self());
-    struct thread_data_t *th_data = (struct thread_data_t *)t_data;
-
-    
-
-    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[])
@@ -178,7 +165,6 @@ int main(int argc, char *argv[])
     ev.events = EPOLLIN;
     ev.data.fd = server_socket_descriptor, server_socket_descriptor;
 
-    pthread_t thread1;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket_descriptor, &ev) == -1)
     {
@@ -200,26 +186,35 @@ int main(int argc, char *argv[])
                 struct sockaddr_in client_sock;
                 socklen_t slen = sizeof(client_sock);
                 connection_socket_descriptor = accept(server_socket_descriptor, (struct sockaddr *)&client_sock, &slen);
+                fcntl(connection_socket_descriptor, F_SETFL, O_NONBLOCK, 1);
+
                 if (connection_socket_descriptor == -1)
                 {
                     fprintf(stderr, "Blad polaczenia");
                     exit(EXIT_FAILURE);
                 }
-                ev.events = EPOLLIN | EPOLLET;
+                ev.events = EPOLLIN | EPOLLHUP;
                 ev.data.fd = connection_socket_descriptor;
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, connection_socket_descriptor, &ev) == -1)
                 {
                     fprintf(stderr, "Blad dodania klienata do kolejki epoll");
                     exit(EXIT_FAILURE);
                 }
-                struct Client *dummy = (Client *)malloc(sizeof(Client));
-                dummy->fd = connection_socket_descriptor;
-                dummy->ip = inet_ntoa(client_sock.sin_addr);
+                struct Client *dummy = new Client(connection_socket_descriptor,inet_ntoa(client_sock.sin_addr));
                 clients.insert(std::make_pair(connection_socket_descriptor, dummy));
             }
             else
             {
-                create_result = pthread_create(&thread1, NULL, ThreadBehavior, TODO);
+                if(events[i].events & EPOLLHUP){
+                    auto client = clients[events[i].data.fd];
+                    clients.erase(events[i].data.fd);
+                    if(client->currRoom!=NULL){
+                        client->currRoom->removeClient(client);
+                    }
+                    epoll_ctl(epoll_fd,EPOLL_CTL_DEL,client->fd,NULL);
+                    close(client->fd);
+                    delete client;
+                }else handleClient(clients[events[i].data.fd]);
             }
         }
     }
