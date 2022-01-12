@@ -164,7 +164,7 @@ void hc_create(Client *client, char *buff)
     {
         if (itr->name == room_name)
         {
-            if (write(client->fd, "failed", 7) == -1)
+            if (write(client->fd, "failed create", 14) == -1)
             {
                 perror("Couldnt write to socket");
             }
@@ -198,7 +198,7 @@ void hc_join(Client *client, char *buff)
         }
     }
 
-    if (write(client->fd, "failed", 7) == -1)
+    if (write(client->fd, "failed join", 12) == -1)
     {
         perror("Couldnt write to socket");
     }
@@ -237,14 +237,14 @@ void handleClient(Client *client)
             {
                 if (client->currRoom->kickClient(std::string(strtok(NULL, " "))) == 0)
                 {
-                    if (write(client->fd, "success", 8) == -1)
+                    if (write(client->fd, "success kick", 13) == -1)
                     {
                         perror("Couldnt write to socket");
                     }
                 }
                 else
                 {
-                    if (write(client->fd, "failed", 7) == -1)
+                    if (write(client->fd, "failed kick", 12) == -1)
                     {
                         perror("Couldnt write to socket");
                     }
