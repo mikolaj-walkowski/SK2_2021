@@ -15,7 +15,7 @@
 #include <vector>
 #include <string>
 #include <map>
-#define SERVER_PORT 1234
+#define SERVER_PORT 4200
 #define QUEUE_SIZE 5
 
 #define MAX_EVENTS 10
@@ -24,7 +24,21 @@ struct epoll_event ev, events[MAX_EVENTS];
 int nfds, epollfd;
 
 enum client_states
-{   };
+{
+    recMsg,
+    newChain
+};
+enum protocol_keywords
+{
+    msg_size,
+    msg,
+    kick,
+    join,
+    leave,
+    create
+};
+std::map<std::string, protocol_keywords> enum_resolver = {{"msg_size", msg_size}, {"msg", msg}, {"kick", kick}, {"join", join}, {"leave", leave}, {"create", create}};
+
 class Room;
 
 class Client
@@ -33,27 +47,54 @@ public:
     int fd;
     client_states cs;
     std::string ip;
-    Room* currRoom;
-    Client(int _fd, std::string _ip):fd(_fd), ip(_ip){
-        currRoom=NULL;
+    int msg_size = 0;
+    Room *currRoom;
+    Client(int _fd, std::string _ip) : fd(_fd), ip(_ip)
+    {
+        currRoom = NULL;
+        cs = newChain;
     }
-
 };
 
 class Room
 {
     std::vector<Client *> room_clients;
     std::vector<std::pair<std::string, std::string>> chatLog;
-    public:
-    struct Client *owner;
+
+public:
+    std::string name;
+    std::string owner;
+
+    void roomMngMsg(std::string msg)
+    {
+        chatLog.push_back(make_pair("serwer", msg));
+        for (auto itr : room_clients)
+        {
+
+            int size = msg.length() + 13;
+            char *buff2 = new char[size];
+            sprintf(buff2, "msg serwer: %s", msg);
+            if (write(itr->fd, buff2, size) == -1)
+            {
+                perror("Couldnt write to socket");
+            }
+            delete[] buff2;
+        }
+    }
+
     void addClient(Client *cl)
     {
         room_clients.push_back(cl);
+        roomMngMsg(cl->ip + " joined");
     }
-    void removeClient(Client* client){
-        for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++){
-            if((*itr) == client){
+    void removeClient(Client *client)
+    {
+        for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
+        {
+            if ((*itr) == client)
+            {
                 room_clients.erase(itr);
+                roomMngMsg((*itr)->ip + " left");
             }
         }
     }
@@ -64,56 +105,174 @@ class Room
         {
             if (cl != itr)
             {
-                int size = cl->ip.length() + msg.length() + 6;
+                int size = cl->ip.length() + msg.length() + 7;
                 char *buff2 = new char[size];
                 sprintf(buff2, "msg %s: %s", cl->ip, msg);
                 if (write(itr->fd, buff2, size) == -1)
                 {
                     perror("Couldnt write to socket");
                 }
-                delete [] buff2;
+                delete[] buff2;
             }
         }
     }
-    void kickClient(std::string ip)
+    int kickClient(std::string ip)
     {
         for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
             if ((*itr)->ip == ip)
             {
-                char *buff = "kick";
-                if(write((*itr)->fd, buff, 4) == -1)
+                if (write((*itr)->fd, "kick", 5) == -1)
                 {
                     perror("Couldnt write to socket");
+                    return 1;
                 }
                 room_clients.erase(itr);
+                roomMngMsg("Kicked " + (*itr)->ip);
+                return 0;
             }
+        return 1;
     }
     void sendChatLog(Client *cl)
     {
         for (auto itr : chatLog)
         {
-            int size = itr.first.length() + itr.second.length() + 6;
+            int size = itr.first.length() + itr.second.length() + 7;
             char *buff2 = new char[size];
-            sprintf(buff2, "msg %s: %s", itr.first , itr.second);
+            sprintf(buff2, "msg %s: %s", itr.first, itr.second);
             if (write(cl->fd, buff2, size) == -1)
             {
                 perror("Couldnt write to socket");
             }
-            delete [] buff2;
+            delete[] buff2;
         }
     }
-    Room(Client *ow) : owner(ow)
+    Room(Client *ow, std::string _name) : owner(ow->ip), name(_name)
     {
-        
+        addClient(ow);
+        ow->currRoom = this;
     }
 };
 
 std::map<int, Client *> clients;
-std::vector<Room*> rooms;
+std::vector<Room *> rooms;
 
-//struktura zawierająca dane, które zostaną przekazane do wątku
-void handleClient(Client* client){
+void hc_create(Client *client, char *buff)
+{
+    std::string room_name(&buff[7]);
+    bool f = false;
+    for (auto itr : rooms)
+    {
+        if (itr->name == room_name)
+        {
+            if (write(client->fd, "failed", 7) == -1)
+            {
+                perror("Couldnt write to socket");
+            }
+            return;
+        }
+    }
 
+    rooms.push_back(new Room(client, room_name));
+    if (write(client->fd, "success", 8) == -1)
+    {
+        perror("Couldnt write to socket");
+    }
+}
+
+void hc_join(Client *client, char *buff)
+{
+    std::string room_name(&buff[5]);
+    for (auto itr : rooms)
+    {
+        if (itr->name == room_name)
+        {
+            if (write(client->fd, "success", 8) == -1)
+            {
+                perror("Couldnt write to socket");
+            }
+            itr->addClient(client);
+            client->currRoom = itr;
+            itr->sendChatLog(client);
+
+            return;
+        }
+    }
+
+    if (write(client->fd, "failed", 7) == -1)
+    {
+        perror("Couldnt write to socket");
+    }
+}
+
+void hc_recMsg(Client* client)
+{
+    char *buff = new char[client->msg_size];
+        read(client->fd, buff, client->msg_size);
+        char *token;
+        token = strtok(buff, " ");
+        if (token == "msg")
+        {
+            client->currRoom->broadcastMsg(client, std::string(&buff[4]));
+        }
+        delete[] buff;
+}
+
+void handleClient(Client *client)
+{
+    switch (client->cs)
+    {
+    case newChain:
+        char buff[100];
+        read(client->fd, buff, 100);
+        char *token;
+        token = strtok(buff, " ");
+        switch (enum_resolver[token])
+        {
+        case msg_size:
+            client->msg_size = atoi(strtok(NULL, " "));
+            client->cs = recMsg;
+            break;
+        case kick:
+            if (client->currRoom->owner == client->ip)
+            {
+                if (client->currRoom->kickClient(std::string(strtok(NULL, " "))) == 0)
+                {
+                    if (write(client->fd, "success", 8) == -1)
+                    {
+                        perror("Couldnt write to socket");
+                    }
+                }
+                else
+                {
+                    if (write(client->fd, "failed", 7) == -1)
+                    {
+                        perror("Couldnt write to socket");
+                    }
+                }
+            }
+            break;
+        case join:
+            hc_join(client, buff);
+            break;
+        case leave:
+            if (client->currRoom != NULL)
+            {
+                client->currRoom->removeClient(client);
+                client->currRoom = NULL;
+            }
+            break;
+        case create:
+            hc_create(client,buff);
+            break;
+        default:
+            break;
+        }
+        break;
+    case recMsg:
+        hc_recMsg(client);
+    default:
+        break;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -155,7 +314,7 @@ int main(int argc, char *argv[])
     }
 
     //TODO stworzyć instancję epoll przez epoll_create1(0);
-    int epoll_fd = epoll_create1(MAX_EVENTS);
+    int epoll_fd = epoll_create1(0);
     if (epoll_fd == -1)
     {
         fprintf(stderr, "Blad epoll_create1");
@@ -164,7 +323,6 @@ int main(int argc, char *argv[])
 
     ev.events = EPOLLIN;
     ev.data.fd = server_socket_descriptor, server_socket_descriptor;
-
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket_descriptor, &ev) == -1)
     {
@@ -200,21 +358,25 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "Blad dodania klienata do kolejki epoll");
                     exit(EXIT_FAILURE);
                 }
-                struct Client *dummy = new Client(connection_socket_descriptor,inet_ntoa(client_sock.sin_addr));
+                struct Client *dummy = new Client(connection_socket_descriptor, inet_ntoa(client_sock.sin_addr));
                 clients.insert(std::make_pair(connection_socket_descriptor, dummy));
             }
             else
             {
-                if(events[i].events & EPOLLHUP){
+                if (events[i].events & EPOLLHUP)
+                {
                     auto client = clients[events[i].data.fd];
                     clients.erase(events[i].data.fd);
-                    if(client->currRoom!=NULL){
+                    if (client->currRoom != NULL)
+                    {
                         client->currRoom->removeClient(client);
                     }
-                    epoll_ctl(epoll_fd,EPOLL_CTL_DEL,client->fd,NULL);
+                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
                     close(client->fd);
                     delete client;
-                }else handleClient(clients[events[i].data.fd]);
+                }
+                else
+                    handleClient(clients[events[i].data.fd]);
             }
         }
     }

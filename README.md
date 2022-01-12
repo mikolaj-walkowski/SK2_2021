@@ -5,7 +5,7 @@ Wysłanie wiadomości serwer -> klient:
 - [s]msg %ip %treść - wiadomość
 
 Wysłanie wiadomości klient -> serwer:
-- [k]msg-size %d - wielkość wiadomości
+- [k]msg_size %d - wielkość wiadomości
 - [k]msg %treść - wiadomość
 
 Kickowanie admin -> serwer
