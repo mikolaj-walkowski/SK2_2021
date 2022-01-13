@@ -30,6 +30,7 @@ enum client_states
 };
 enum protocol_keywords
 {
+    bad,
     msg_size,
     msg,
     kick,
@@ -39,6 +40,17 @@ enum protocol_keywords
 };
 std::map<std::string, protocol_keywords> enum_resolver = {{"msg_size", msg_size}, {"msg", msg}, {"kick", kick}, {"join", join}, {"leave", leave}, {"create", create}};
 
+protocol_keywords resolve_pkw(std::string s)
+{
+    try
+    {
+        return enum_resolver.at(s);
+    }
+    catch (const std::exception &e)
+    {
+        return bad;
+    }
+}
 class Room;
 
 class Client
@@ -70,22 +82,19 @@ public:
         chatLog.push_back(make_pair("serwer", msg));
         for (auto itr : room_clients)
         {
-
-            int size = msg.length() + 13;
-            char *buff2 = new char[size];
-            sprintf(buff2, "msg serwer: %s", msg);
-            if (write(itr->fd, buff2, size) == -1)
+            std::string cmsg = "Serwer message: " + msg;
+            if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
             {
                 perror("Couldnt write to socket");
             }
-            delete[] buff2;
         }
     }
 
     void addClient(Client *cl)
     {
         room_clients.push_back(cl);
-        roomMngMsg(cl->ip + " joined");
+        roomMngMsg(cl->ip + " joined\n");
+        printf(("Room " + name + " current size: %d\n").c_str(), room_clients.size());
     }
     void removeClient(Client *client)
     {
@@ -94,7 +103,7 @@ public:
             if ((*itr) == client)
             {
                 room_clients.erase(itr);
-                roomMngMsg((*itr)->ip + " left");
+                roomMngMsg((*itr)->ip + " left\n");
             }
         }
     }
@@ -105,14 +114,11 @@ public:
         {
             if (cl != itr)
             {
-                int size = cl->ip.length() + msg.length() + 7;
-                char *buff2 = new char[size];
-                sprintf(buff2, "msg %s: %s", cl->ip, msg);
-                if (write(itr->fd, buff2, size) == -1)
+                std::string cmsg = "msg " + cl->ip + ": " + msg;
+                if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
                 {
                     perror("Couldnt write to socket");
                 }
-                delete[] buff2;
             }
         }
     }
@@ -127,7 +133,7 @@ public:
                     return 1;
                 }
                 room_clients.erase(itr);
-                roomMngMsg("Kicked " + (*itr)->ip);
+                roomMngMsg("Kicked " + (*itr)->ip + "\n");
                 return 0;
             }
         return 1;
@@ -136,14 +142,11 @@ public:
     {
         for (auto itr : chatLog)
         {
-            int size = itr.first.length() + itr.second.length() + 7;
-            char *buff2 = new char[size];
-            sprintf(buff2, "msg %s: %s", itr.first, itr.second);
-            if (write(cl->fd, buff2, size) == -1)
+            std::string cmsg = "msg " + itr.first + ": " + itr.second;
+            if (write(cl->fd, cmsg.c_str(), cmsg.length()) == -1)
             {
                 perror("Couldnt write to socket");
             }
-            delete[] buff2;
         }
     }
     Room(Client *ow, std::string _name) : owner(ow->ip), name(_name)
@@ -158,8 +161,7 @@ std::vector<Room *> rooms;
 
 void hc_create(Client *client, char *buff)
 {
-    std::string room_name(&buff[7]);
-    bool f = false;
+    std::string room_name(buff + 7, strcspn(buff + 7, "\n"));
     for (auto itr : rooms)
     {
         if (itr->name == room_name)
@@ -181,7 +183,10 @@ void hc_create(Client *client, char *buff)
 
 void hc_join(Client *client, char *buff)
 {
-    std::string room_name(&buff[5]);
+    std::string room_name(buff + 5, strcspn(buff + 5, "\n"));
+    printf(room_name.c_str());
+    printf("\n");
+
     for (auto itr : rooms)
     {
         if (itr->name == room_name)
@@ -204,17 +209,81 @@ void hc_join(Client *client, char *buff)
     }
 }
 
-void hc_recMsg(Client* client)
+void hc_recMsg(Client *client)
 {
     char *buff = new char[client->msg_size];
-        read(client->fd, buff, client->msg_size);
-        char *token;
-        token = strtok(buff, " ");
-        if (token == "msg")
+    read(client->fd, buff, client->msg_size);
+    std::string token(buff, strcspn(buff, " "));
+    if (token == "msg" && client->currRoom != NULL)
+    {
+        client->currRoom->broadcastMsg(client, std::string(buff + 5));
+    }
+    client->cs = newChain;
+    client->msg_size = 0;
+}
+
+void hc_msg_size(Client *client, char *buff)
+{
+    printf("Was i even here");
+    //std::string number(buff + 9, strcspn(buff, "\n"));
+    //client->msg_size = stoi(number);
+    //printf("Msg_size %d", client->msg_size);
+    //client->cs = recMsg;
+}
+
+void hc_newChain(Client *client)
+{
+    char buff[100];
+    read(client->fd, buff, 100);
+    std::string token(buff, strcspn(buff, " "));
+    printf("Token pos:%d data: ", strcspn(buff, " "));
+    printf(token.c_str());
+    printf("\n");
+    printf("PKW %d \n", resolve_pkw(token));
+    switch (resolve_pkw(token))
+    {
+    case kick:
+        if (client->currRoom->owner == client->ip)
         {
-            client->currRoom->broadcastMsg(client, std::string(&buff[4]));
+            if (client->currRoom->kickClient(std::string(buff + 5)) == 0)
+            {
+                if (write(client->fd, "success kick", 13) == -1)
+                {
+                    perror("Couldnt write to socket");
+                }
+            }
+            else
+            {
+                if (write(client->fd, "failed kick", 12) == -1)
+                {
+                    perror("Couldnt write to socket");
+                }
+            }
         }
-        delete[] buff;
+        break;
+    case join:
+        hc_join(client, buff);
+        break;
+    case leave:
+        if (client->currRoom != NULL)
+        {
+            client->currRoom->removeClient(client);
+            client->currRoom = NULL;
+        }
+        break;
+    case create:
+        hc_create(client, buff);
+        break;
+    case msg_size:
+        break;
+        // printf("WTf\n");
+        // //hc_msg_size(client, buff);
+        // break;
+    default:
+        printf("Bad request\n");
+        break;
+    }
+    printf("Did i leave the switch");
 }
 
 void handleClient(Client *client)
@@ -222,54 +291,11 @@ void handleClient(Client *client)
     switch (client->cs)
     {
     case newChain:
-        char buff[100];
-        read(client->fd, buff, 100);
-        char *token;
-        token = strtok(buff, " ");
-        switch (enum_resolver[token])
-        {
-        case msg_size:
-            client->msg_size = atoi(strtok(NULL, " "));
-            client->cs = recMsg;
-            break;
-        case kick:
-            if (client->currRoom->owner == client->ip)
-            {
-                if (client->currRoom->kickClient(std::string(strtok(NULL, " "))) == 0)
-                {
-                    if (write(client->fd, "success kick", 13) == -1)
-                    {
-                        perror("Couldnt write to socket");
-                    }
-                }
-                else
-                {
-                    if (write(client->fd, "failed kick", 12) == -1)
-                    {
-                        perror("Couldnt write to socket");
-                    }
-                }
-            }
-            break;
-        case join:
-            hc_join(client, buff);
-            break;
-        case leave:
-            if (client->currRoom != NULL)
-            {
-                client->currRoom->removeClient(client);
-                client->currRoom = NULL;
-            }
-            break;
-        case create:
-            hc_create(client,buff);
-            break;
-        default:
-            break;
-        }
+        hc_newChain(client);
         break;
     case recMsg:
         hc_recMsg(client);
+        break;
     default:
         break;
     }
@@ -322,11 +348,16 @@ int main(int argc, char *argv[])
     }
 
     ev.events = EPOLLIN;
-    ev.data.fd = server_socket_descriptor, server_socket_descriptor;
+    ev.data.fd = server_socket_descriptor;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket_descriptor, &ev) == -1)
     {
-        fprintf(stderr, "Blad epollll_ ctl ADD dla server socket");
+        fprintf(stderr, "Blad epoll_ctl ADD dla server socket");
+    }
+    ev.data.fd = 0;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, 0, &ev) == -1)
+    {
+        fprintf(stderr, "Blad epoll_ctl ADD dla klawiatury");
     }
     int create_result = 0;
     for (;;)
@@ -339,6 +370,13 @@ int main(int argc, char *argv[])
         }
         for (int i = 0; i < nfds; ++i)
         {
+            if (events[i].data.fd == 0)
+            {
+                char buff[10];
+                read(0, buff, 10);
+                goto end;
+                continue;
+            }
             if (events[i].data.fd == server_socket_descriptor)
             {
                 struct sockaddr_in client_sock;
@@ -360,27 +398,37 @@ int main(int argc, char *argv[])
                 }
                 struct Client *dummy = new Client(connection_socket_descriptor, inet_ntoa(client_sock.sin_addr));
                 clients.insert(std::make_pair(connection_socket_descriptor, dummy));
+                continue;
+            }
+
+            if (events[i].events & EPOLLHUP)
+            {
+                printf("Deleteed?\n");
+                auto client = clients[events[i].data.fd];
+                clients.erase(events[i].data.fd);
+                if (client->currRoom != NULL)
+                {
+                    client->currRoom->removeClient(client);
+                }
+                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+                close(client->fd);
+                delete client;
             }
             else
-            {
-                if (events[i].events & EPOLLHUP)
+                try
                 {
-                    auto client = clients[events[i].data.fd];
-                    clients.erase(events[i].data.fd);
-                    if (client->currRoom != NULL)
-                    {
-                        client->currRoom->removeClient(client);
-                    }
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-                    close(client->fd);
-                    delete client;
+                    handleClient(clients.at(events[i].data.fd));
                 }
-                else
-                    handleClient(clients[events[i].data.fd]);
-            }
+                catch (const std::exception &e)
+                {
+                }
         }
     }
-
+end:
+    for (auto itr = clients.begin(); itr != clients.end(); itr++)
+    {
+        close(itr->second->fd);
+    }
     close(server_socket_descriptor);
     return (0);
 }
