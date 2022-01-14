@@ -104,10 +104,10 @@ void hc_msg_size(Client *client, char *buff)
 
 void hc_newChain(Client *client)
 {
-    char buff[100];
+    char buff[100]={};
     read(client->fd, buff, 100);
-    std::string token(buff, strcspn(buff, " "));
-    printf("Token pos:%d data: ", strcspn(buff, " "));
+    std::string token(buff, strcspn(buff, " \n"));
+    printf("Token pos:%d data: ", strcspn(buff, " \n"));
     printf(token.c_str());
     printf("\n");
     printf("PKW %d \n", resolve_pkw(token));
@@ -145,6 +145,7 @@ void hc_newChain(Client *client)
     case create:
         hc_create(client, buff);
         break;
+    //FIXME msg_size 
     case msg_size:
         break;
         // printf("WTf\n");
@@ -211,7 +212,6 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    //TODO stworzyć instancję epoll przez epoll_create1(0);
     int epoll_fd = epoll_create1(0);
     if (epoll_fd == -1)
     {
@@ -254,14 +254,14 @@ int main(int argc, char *argv[])
                 struct sockaddr_in client_sock;
                 socklen_t slen = sizeof(client_sock);
                 connection_socket_descriptor = accept(server_socket_descriptor, (struct sockaddr *)&client_sock, &slen);
-                fcntl(connection_socket_descriptor, F_SETFL, O_NONBLOCK, 1);
+                fcntl(connection_socket_descriptor, F_SETFL, O_NONBLOCK);
 
                 if (connection_socket_descriptor == -1)
                 {
                     fprintf(stderr, "Blad polaczenia");
                     exit(EXIT_FAILURE);
                 }
-                ev.events = EPOLLIN | EPOLLHUP;
+                ev.events = EPOLLIN | EPOLLRDHUP;
                 ev.data.fd = connection_socket_descriptor;
                 if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, connection_socket_descriptor, &ev) == -1)
                 {
@@ -272,16 +272,14 @@ int main(int argc, char *argv[])
                 clients.insert(std::make_pair(connection_socket_descriptor, dummy));
                 continue;
             }
-
-            if (events[i].events & EPOLLHUP)
+            if (events[i].events & EPOLLRDHUP)
             {
-                printf("Deleteed?\n");
                 auto client = clients[events[i].data.fd];
-                clients.erase(events[i].data.fd);
                 if (client->currRoom != NULL)
                 {
                     client->currRoom->removeClient(client);
                 }
+                clients.erase(events[i].data.fd);
                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
                 close(client->fd);
                 delete client;

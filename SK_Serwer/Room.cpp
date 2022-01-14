@@ -28,8 +28,10 @@ void Room::removeClient(Client *client)
     {
         if ((*itr) == client)
         {
+            std::string tmp =(*itr)->ip; 
             room_clients.erase(itr);
-            roomMngMsg((*itr)->ip + " left\n");
+            roomMngMsg(tmp + " left\n");
+            return;
         }
     }
 }
