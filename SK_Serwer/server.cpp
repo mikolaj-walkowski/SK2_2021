@@ -15,6 +15,10 @@
 #include <vector>
 #include <string>
 #include <map>
+#include "Client.h"
+#include "enums.h"
+#include "Room.h"
+
 #define SERVER_PORT 4200
 #define QUEUE_SIZE 5
 
@@ -22,139 +26,6 @@
 
 struct epoll_event ev, events[MAX_EVENTS];
 int nfds, epollfd;
-
-enum client_states
-{
-    recMsg,
-    newChain
-};
-enum protocol_keywords
-{
-    bad,
-    msg_size,
-    msg,
-    kick,
-    join,
-    leave,
-    create
-};
-std::map<std::string, protocol_keywords> enum_resolver = {{"msg_size", msg_size}, {"msg", msg}, {"kick", kick}, {"join", join}, {"leave", leave}, {"create", create}};
-
-protocol_keywords resolve_pkw(std::string s)
-{
-    try
-    {
-        return enum_resolver.at(s);
-    }
-    catch (const std::exception &e)
-    {
-        return bad;
-    }
-}
-class Room;
-
-class Client
-{
-public:
-    int fd;
-    client_states cs;
-    std::string ip;
-    int msg_size = 0;
-    Room *currRoom;
-    Client(int _fd, std::string _ip) : fd(_fd), ip(_ip)
-    {
-        currRoom = NULL;
-        cs = newChain;
-    }
-};
-
-class Room
-{
-    std::vector<Client *> room_clients;
-    std::vector<std::pair<std::string, std::string>> chatLog;
-
-public:
-    std::string name;
-    std::string owner;
-
-    void roomMngMsg(std::string msg)
-    {
-        chatLog.push_back(make_pair("serwer", msg));
-        for (auto itr : room_clients)
-        {
-            std::string cmsg = "Serwer message: " + msg;
-            if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
-            {
-                perror("Couldnt write to socket");
-            }
-        }
-    }
-
-    void addClient(Client *cl)
-    {
-        room_clients.push_back(cl);
-        roomMngMsg(cl->ip + " joined\n");
-        printf(("Room " + name + " current size: %d\n").c_str(), room_clients.size());
-    }
-    void removeClient(Client *client)
-    {
-        for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
-        {
-            if ((*itr) == client)
-            {
-                room_clients.erase(itr);
-                roomMngMsg((*itr)->ip + " left\n");
-            }
-        }
-    }
-    void broadcastMsg(Client *cl, std::string msg)
-    {
-        chatLog.push_back(std::make_pair(cl->ip, msg));
-        for (auto itr : room_clients)
-        {
-            if (cl != itr)
-            {
-                std::string cmsg = "msg " + cl->ip + ": " + msg;
-                if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
-                {
-                    perror("Couldnt write to socket");
-                }
-            }
-        }
-    }
-    int kickClient(std::string ip)
-    {
-        for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
-            if ((*itr)->ip == ip)
-            {
-                if (write((*itr)->fd, "kick", 5) == -1)
-                {
-                    perror("Couldnt write to socket");
-                    return 1;
-                }
-                room_clients.erase(itr);
-                roomMngMsg("Kicked " + (*itr)->ip + "\n");
-                return 0;
-            }
-        return 1;
-    }
-    void sendChatLog(Client *cl)
-    {
-        for (auto itr : chatLog)
-        {
-            std::string cmsg = "msg " + itr.first + ": " + itr.second;
-            if (write(cl->fd, cmsg.c_str(), cmsg.length()) == -1)
-            {
-                perror("Couldnt write to socket");
-            }
-        }
-    }
-    Room(Client *ow, std::string _name) : owner(ow->ip), name(_name)
-    {
-        addClient(ow);
-        ow->currRoom = this;
-    }
-};
 
 std::map<int, Client *> clients;
 std::vector<Room *> rooms;
@@ -323,6 +194,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "%s: Błąd przy próbie utworzenia gniazda..\n", argv[0]);
         exit(1);
     }
+
     setsockopt(server_socket_descriptor, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse_addr_val, sizeof(reuse_addr_val));
 
     bind_result = bind(server_socket_descriptor, (struct sockaddr *)&server_address, sizeof(struct sockaddr));
