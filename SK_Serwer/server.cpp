@@ -149,7 +149,6 @@ void hc_newChain(Client *client)
     case create:
         hc_create(client, buff);
         break;
-    //FIXME msg_size
     case msg_size:
         printf("WTf\n");
         hc_msg_size(client, buff);
@@ -181,7 +180,6 @@ void handleClient(Client *client)
     }
 }
 
-//TODO complete an move to utils/enums
 void guard(int i, std::string s)
 {
     if (i < 0)
@@ -259,6 +257,7 @@ int main(int argc, char *argv[])
         {
             if (events[i].data.fd == 0)
             {
+                //FIXME sockety nie zamykają się automatycznie client side
                 char buff[10];
                 read(0, buff, 10);
                 for (auto itr = clients.begin(); itr != clients.end(); itr++)
