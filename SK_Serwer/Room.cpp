@@ -4,21 +4,14 @@
 
 void Room::roomMngMsg(std::string msg)
 {
-    chatLog.push_back(make_pair("serwer", msg));
-    for (auto itr : room_clients)
-    {
-        std::string cmsg = "Serwer message: " + msg;
-        if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
-        {
-            perror("Couldnt write to socket");
-        }
-    }
+    broadcastMsg("server",msg);
 }
 
 void Room::addClient(Client *cl)
 {
+    roomMngMsg(cl->ip + " joined");
     room_clients.push_back(cl);
-    roomMngMsg(cl->ip + " joined\n");
+    sendChatLog(cl);
     printf(("Room " + name + " current size: %d\n").c_str(), room_clients.size());
 }
 
@@ -30,25 +23,22 @@ void Room::removeClient(Client *client)
         {
             std::string tmp =(*itr)->ip; 
             room_clients.erase(itr);
-            roomMngMsg(tmp + " left\n");
+            roomMngMsg(tmp + " left");
             return;
         }
     }
 }
 
-void Room::broadcastMsg(Client *cl, std::string msg)
+void Room::broadcastMsg(std::string ip, std::string msg)
 {
-    chatLog.push_back(std::make_pair(cl->ip, msg));
+    chatLog.push_back(std::make_pair(ip, msg));
     for (auto itr : room_clients)
     {
-        if (cl != itr)
-        {
-            std::string cmsg = "msg " + cl->ip + ": " + msg;
+            std::string cmsg = "msg " + ip + ": " + msg;
             if (write(itr->fd, cmsg.c_str(), cmsg.length()) == -1)
             {
                 perror("Couldnt write to socket");
             }
-        }
     }
 }
 
@@ -63,7 +53,7 @@ int Room::kickClient(std::string ip)
                 return 1;
             }
             room_clients.erase(itr);
-            roomMngMsg("Kicked " + (*itr)->ip + "\n");
+            roomMngMsg("Kicked " + ip);
             return 0;
         }
     return 1;
@@ -74,7 +64,7 @@ void Room::sendChatLog(Client *cl)
     for (auto itr : chatLog)
     {
         std::string cmsg = "msg " + itr.first + ": " + itr.second;
-        if (write(cl->fd, cmsg.c_str(), cmsg.length()) == -1)
+        if (write(cl->fd, cmsg.c_str(), cmsg.length()+1) == -1)
         {
             perror("Couldnt write to socket");
         }

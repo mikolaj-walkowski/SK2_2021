@@ -18,6 +18,7 @@
 #include "Client.h"
 #include "enums.h"
 #include "Room.h"
+#include "Protocol.h"
 
 #define SERVER_PORT 4200
 #define QUEUE_SIZE 5
@@ -46,10 +47,6 @@ void hc_create(Client *client, char *buff)
     }
 
     rooms.push_back(new Room(client, room_name));
-    if (write(client->fd, "success", 8) == -1)
-    {
-        perror("Couldnt write to socket");
-    }
 }
 
 void hc_join(Client *client, char *buff)
@@ -84,27 +81,34 @@ void hc_recMsg(Client *client)
 {
     char *buff = new char[client->msg_size];
     read(client->fd, buff, client->msg_size);
+    printf(buff);
+    printf("\n");
     std::string token(buff, strcspn(buff, " "));
     if (token == "msg" && client->currRoom != NULL)
     {
-        client->currRoom->broadcastMsg(client, std::string(buff + 5));
+        client->currRoom->broadcastMsg(client->ip, std::string(buff + 4));
     }
     client->cs = newChain;
     client->msg_size = 0;
+    delete[] buff;
 }
 
 void hc_msg_size(Client *client, char *buff)
 {
     printf("Was i even here");
-    //std::string number(buff + 9, strcspn(buff, "\n"));
-    //client->msg_size = stoi(number);
-    //printf("Msg_size %d", client->msg_size);
-    //client->cs = recMsg;
+    std::string number(buff + 9, strcspn(buff, "\n"));
+    client->msg_size = stoi(number);
+    printf("Msg_size %d", client->msg_size);
+    client->cs = recMsg;
 }
-
+/**
+ * @brief Handles new protocol chain
+ * 
+ * @param client - active client
+ */
 void hc_newChain(Client *client)
 {
-    char buff[100]={};
+    char buff[100] = {};
     read(client->fd, buff, 100);
     std::string token(buff, strcspn(buff, " \n"));
     printf("Token pos:%d data: ", strcspn(buff, " \n"));
@@ -116,7 +120,7 @@ void hc_newChain(Client *client)
     case kick:
         if (client->currRoom->owner == client->ip)
         {
-            if (client->currRoom->kickClient(std::string(buff + 5)) == 0)
+            if (client->currRoom->kickClient(std::string(buff + 5, strcspn(buff + 5, " \n"))) == 0)
             {
                 if (write(client->fd, "success kick", 13) == -1)
                 {
@@ -145,19 +149,22 @@ void hc_newChain(Client *client)
     case create:
         hc_create(client, buff);
         break;
-    //FIXME msg_size 
+    //FIXME msg_size
     case msg_size:
+        printf("WTf\n");
+        hc_msg_size(client, buff);
         break;
-        // printf("WTf\n");
-        // //hc_msg_size(client, buff);
-        // break;
     default:
         printf("Bad request\n");
         break;
     }
-    printf("Did i leave the switch");
+    printf("Did i leave the switch\n");
 }
-
+/**
+ * @brief Handles incoming client messagess
+ * 
+ * @param client Client with filled read buffer
+ */
 void handleClient(Client *client)
 {
     switch (client->cs)
@@ -166,6 +173,7 @@ void handleClient(Client *client)
         hc_newChain(client);
         break;
     case recMsg:
+        printf("Reciving msg\n");
         hc_recMsg(client);
         break;
     default:
@@ -173,6 +181,13 @@ void handleClient(Client *client)
     }
 }
 
+//TODO complete an move to utils/enums
+void guard(int i, std::string s)
+{
+    if (i < 0)
+    {
+    }
+}
 int main(int argc, char *argv[])
 {
     int server_socket_descriptor;
@@ -246,8 +261,15 @@ int main(int argc, char *argv[])
             {
                 char buff[10];
                 read(0, buff, 10);
-                goto end;
-                continue;
+                for (auto itr = clients.begin(); itr != clients.end(); itr++)
+                {
+                    write(itr->first,"terminate",10);
+                    shutdown(itr->first,SHUT_RDWR);
+                    close(itr->first);
+                    printf("Closed socket %d\n", itr->first);
+                }
+                close(server_socket_descriptor);
+                return (0);
             }
             if (events[i].data.fd == server_socket_descriptor)
             {
@@ -280,7 +302,6 @@ int main(int argc, char *argv[])
                     client->currRoom->removeClient(client);
                 }
                 clients.erase(events[i].data.fd);
-                epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
                 close(client->fd);
                 delete client;
             }
@@ -294,11 +315,5 @@ int main(int argc, char *argv[])
                 }
         }
     }
-end:
-    for (auto itr = clients.begin(); itr != clients.end(); itr++)
-    {
-        close(itr->second->fd);
-    }
-    close(server_socket_descriptor);
     return (0);
 }

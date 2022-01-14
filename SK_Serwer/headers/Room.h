@@ -18,7 +18,7 @@ public:
 
     void removeClient(Client *client);
 
-    void broadcastMsg(Client *cl, std::string msg);
+    void broadcastMsg(std::string ip, std::string msg);
 
     int kickClient(std::string ip);
 
