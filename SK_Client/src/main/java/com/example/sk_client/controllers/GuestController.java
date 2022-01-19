@@ -13,7 +13,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.net.InetAddress;
+import java.util.Objects;
 
 public class GuestController {
     @FXML Button buttonWyslij;
@@ -26,22 +26,23 @@ public class GuestController {
     PrintWriter writer;
 
     public void setNazwa(String nazwa) throws IOException {
-        this.IP = String.valueOf(InetAddress.getLocalHost());
-        this.IP = IP.substring(IP.indexOf("/")+1);
+        this.IP = "192.168.55.104";
+        //this.IP = IP.substring(IP.indexOf("/")+1);
         this.nazwa = nazwa;
         this.tytul.setText("Pokoj " + nazwa);
-        this.klient = new Klient(IP, czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
+        this.klient = Klient.getInstance();
+//        this.czat = klient.getTextArea();
+        this.klient.activate(czat);
+        this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
         String inputText = "join "+nazwa;
         writer.println(inputText);
     }
 
-    @FXML protected void wyslijWiadomosc(ActionEvent event){
+    @FXML protected void wyslijWiadomosc(){
         if(!(wiadomosc.getText() == null) && !wiadomosc.getText().trim().isEmpty()) {
-            String inputText = this.wiadomosc.getText();
-            String inputSize = "msg_size "+inputText.length();
+            String inputText = "msg "+this.wiadomosc.getText();
+            String inputSize = "msg_size "+inputText.length()+1;
             this.writer.println(inputSize);
-            inputText = "msg "+inputText;
             this.writer.println(inputText);
             this.wiadomosc.clear();
         }
@@ -49,8 +50,8 @@ public class GuestController {
 
     @FXML protected void toMain(ActionEvent event) throws IOException{
         writer.println("leave");
-        klient.closeSocket();
-        Parent parent = (Parent) FXMLLoader.load(this.getClass().getResource("/com/example/sk_client/main_page.fxml"));
+        klient.stopListening();
+        Parent parent = FXMLLoader.load(Objects.requireNonNull(this.getClass().getResource("/com/example/sk_client/main_page.fxml")));
         Scene scene = new Scene(parent);
         Stage stage = (Stage) ((Node)event.getSource()).getScene().getWindow();
         stage.setScene(scene);

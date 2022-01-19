@@ -1,8 +1,6 @@
 package com.example.sk_client.controllers;
 
 import com.example.sk_client.Klient;
-import com.example.sk_client.controllers.GuestController;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
@@ -23,17 +21,18 @@ public class HostController extends GuestController {
         this.IP = IP.substring(IP.indexOf("/")+1);
         this.nazwa = nazwa;
         this.tytul.setText("Pokoj " + nazwa);
-        this.klient = new Klient(IP, czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
+        this.klient = Klient.getInstance();
+        this.klient.activate(czat);
+        this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
         String inputText = "create "+nazwa;
         writer.println(inputText);
     }
 
-    @FXML protected void wyrzucUzytkownika(ActionEvent event){
+    @FXML protected void wyrzucUzytkownika(){
         if(wyrzuc.getText() == null || wyrzuc.getText().trim().isEmpty()){
             popup2.showAndWait();
         }
-        else if(wyrzuc.getText().equals(String.valueOf(IP))){
+        else if(wyrzuc.getText().equals(klient.clientSocket.getLocalSocketAddress().toString().substring(1,klient.clientSocket.getLocalSocketAddress().toString().indexOf(':')))){
             popup3.showAndWait();
         }
         else{
