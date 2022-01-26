@@ -9,9 +9,9 @@ class Client
 {
 public:
     int fd;
-    client_states cs;
-    std::string ip;
-    int msg_size = 0;
+    char* nick;
     Room *currRoom;
-    Client(int _fd, std::string _ip);
+    Client(int _fd, char* nick);
+    Client(int _fd);
+    ~Client();
 };

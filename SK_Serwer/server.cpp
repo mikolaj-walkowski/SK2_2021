@@ -33,153 +33,155 @@ std::vector<Room *> rooms;
 
 void hc_create(Client *client, char *buff)
 {
-    std::string room_name(buff + 7, strcspn(buff + 7, "\n"));
+    //TODO ew dodać guardy na cstring lenng
+    printf("\tClient %s requests: create %s, ",client->nick,buff+7);
+    char *room_name = createBuffer(NULL,1, buff+7);
+    sprintf(room_name,"%s",buff + 7);
+
     for (auto itr : rooms)
     {
-        if (itr->name == room_name)
+        if (strcmp(itr->name,room_name)==0)
         {
+            printf("Failure\n");
             if (write(client->fd, "failed create", 14) == -1)
             {
                 perror("Couldnt write to socket");
             }
+            free(room_name);
             return;
         }
     }
-
+    printf("Success\n");
     rooms.push_back(new Room(client, room_name));
 }
 
 void hc_join(Client *client, char *buff)
 {
-    std::string room_name(buff + 5, strcspn(buff + 5, "\n"));
-    printf(room_name.c_str());
-    printf("\n");
-
+    printf("\tClient %s requests: join %s, ",client->nick,buff+5);
     for (auto itr : rooms)
     {
-        if (itr->name == room_name)
+        if (strcmp(itr->name,buff+5)==0)
         {
+            printf("Success\n");
             if (write(client->fd, "success", 8) == -1)
             {
                 perror("Couldnt write to socket");
             }
             itr->addClient(client);
             client->currRoom = itr;
-            itr->sendChatLog(client);
-
             return;
         }
     }
 
+    printf("Failure\n");
     if (write(client->fd, "failed join", 12) == -1)
     {
         perror("Couldnt write to socket");
     }
 }
 
-void hc_recMsg(Client *client)
+char* readUntil(int fd, char stop)
 {
-    char *buff = new char[client->msg_size];
-    read(client->fd, buff, client->msg_size);
-    printf(buff);
-    printf("\n");
-    std::string token(buff, strcspn(buff, " "));
-    if (token == "msg" && client->currRoom != NULL)
-    {
-        client->currRoom->broadcastMsg(client->ip, std::string(buff + 4));
-    }
-    client->cs = newChain;
-    client->msg_size = 0;
-    delete[] buff;
+    char* handle = (char *)malloc(sizeof(char) * 100);
+    int sizeLimit = 100, i = -1;
+    do{
+        ++i;
+        if (!i < sizeLimit)
+        {
+            sizeLimit += 100;
+            handle = (char *)realloc(handle, sizeof(char) * sizeLimit);
+        }
+        read(fd, handle + i, 1);
+        //printf("%c(%d)",handle[i],handle[i]);
+    }while (handle[i] != stop);
+    //printf("\n");
+    //printf("%d, %s\n",handle,handle);
+    return handle;
 }
 
-void hc_msg_size(Client *client, char *buff)
+void hc_kick(Client *client, char *buff)
 {
-    printf("Was i even here");
-    std::string number(buff + 9, strcspn(buff, "\n"));
-    client->msg_size = stoi(number);
-    printf("Msg_size %d", client->msg_size);
-    client->cs = recMsg;
-}
-/**
- * @brief Handles new protocol chain
- * 
- * @param client - active client
- */
-void hc_newChain(Client *client)
-{
-    char buff[100] = {};
-    read(client->fd, buff, 100);
-    std::string token(buff, strcspn(buff, " \n"));
-    printf("Token pos:%d data: ", strcspn(buff, " \n"));
-    printf(token.c_str());
-    printf("\n");
-    printf("PKW %d \n", resolve_pkw(token));
-    switch (resolve_pkw(token))
+    printf("\tClient %s requests: kick %s, ",client->nick,buff+5);
+    if (client->currRoom->owner == client->nick)
     {
-    case kick:
-        if (client->currRoom->owner == client->ip)
+        if (client->currRoom->kickClient(buff+5) == 0)
         {
-            if (client->currRoom->kickClient(std::string(buff + 5, strcspn(buff + 5, " \n"))) == 0)
+            printf("Success\n");
+            if (write(client->fd, "success kick", 13) == -1)
             {
-                if (write(client->fd, "success kick", 13) == -1)
-                {
-                    perror("Couldnt write to socket");
-                }
-            }
-            else
-            {
-                if (write(client->fd, "failed kick", 12) == -1)
-                {
-                    perror("Couldnt write to socket");
-                }
+                perror("Couldnt write to socket");
             }
         }
-        break;
-    case join:
-        hc_join(client, buff);
-        break;
-    case leave:
-        if (client->currRoom != NULL)
+        else
+        {
+            printf("Failure\n");
+            if (write(client->fd, "failed kick", 12) == -1)
+            {
+                perror("Couldnt write to socket");
+            }
+        }
+        free(buff+5);
+    }
+}
+
+void hc_msg(Client *client, char *buff)
+{
+    client->currRoom->broadcastMsg(client->nick, buff+4);
+}
+
+void hc_leave(Client* client){
+    printf("\tClient %s requests: leave, ",client->nick);
+
+    if (client->currRoom != NULL)
         {
             client->currRoom->removeClient(client);
             client->currRoom = NULL;
-        }
-        break;
-    case create:
-        hc_create(client, buff);
-        break;
-    case msg_size:
-        printf("WTf\n");
-        hc_msg_size(client, buff);
-        break;
-    default:
-        printf("Bad request\n");
-        break;
-    }
-    printf("Did i leave the switch\n");
-}
-/**
- * @brief Handles incoming client messagess
- * 
- * @param client Client with filled read buffer
- */
-void handleClient(Client *client)
-{
-    switch (client->cs)
-    {
-    case newChain:
-        hc_newChain(client);
-        break;
-    case recMsg:
-        printf("Reciving msg\n");
-        hc_recMsg(client);
-        break;
-    default:
-        break;
     }
 }
 
+
+void handleClient(Client *client)
+{
+    char *buff = readUntil(client->fd,'\0');
+
+    printf("Incoming msg %s\n",buff);
+    protocol_keywords key = resolve_pkw(buff);
+    switch (key)
+    {
+    case kick:
+    {
+        hc_kick(client, buff);
+        break;
+    }
+    case join:
+    {
+        hc_join(client, buff);
+        break;
+    }
+    case leave:
+    {
+        hc_leave(client);
+        break;
+    }
+    case create:
+    {
+        hc_create(client, buff);
+        break;
+    }
+    case msg:
+    {
+        hc_msg(client, buff);
+        break;
+    }
+    default:
+    {
+        printf("Bad request\n");
+        break;
+    }
+    }
+    free(buff);
+    printf("\n");
+}
 void guard(int i, std::string s)
 {
     if (i < 0)
@@ -194,6 +196,7 @@ int main(int argc, char *argv[])
     int listen_result;
     char reuse_addr_val = 1;
     struct sockaddr_in server_address;
+    int maxid = 1;
 
     //inicjalizacja gniazda serwera
 
@@ -262,8 +265,8 @@ int main(int argc, char *argv[])
                 read(0, buff, 10);
                 for (auto itr = clients.begin(); itr != clients.end(); itr++)
                 {
-                    write(itr->first,"terminate",10);
-                    shutdown(itr->first,SHUT_RDWR);
+                    write(itr->first, "terminate", 10);
+                    shutdown(itr->first, SHUT_RDWR);
                     close(itr->first);
                     printf("Closed socket %d\n", itr->first);
                 }
@@ -289,7 +292,10 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "Blad dodania klienata do kolejki epoll");
                     exit(EXIT_FAILURE);
                 }
-                struct Client *dummy = new Client(connection_socket_descriptor, inet_ntoa(client_sock.sin_addr));
+                char* nick = (char*)malloc(sizeof(char)*10);
+                sprintf(nick,"User%d",maxid++);
+                printf("Added Client: \n\tfd: %d\n\tNick: %s\n",connection_socket_descriptor,nick);
+                struct Client *dummy = new Client(connection_socket_descriptor,nick);
                 clients.insert(std::make_pair(connection_socket_descriptor, dummy));
                 continue;
             }
@@ -302,6 +308,7 @@ int main(int argc, char *argv[])
                 }
                 clients.erase(events[i].data.fd);
                 close(client->fd);
+                printf("Deleted client ip: %s\n", client->nick);
                 delete client;
             }
             else

@@ -6,23 +6,23 @@
 class Room
 {
     std::vector<Client *> room_clients;
-    std::vector<std::pair<std::string, std::string>> chatLog;
+    std::vector<char*> chatLog;
 
 public:
-    std::string name;
-    std::string owner;
+    char* name;
+    char* owner;
 
-    void roomMngMsg(std::string msg);
+    void roomMngMsg(char* msg);
 
     void addClient(Client *cl);
 
     void removeClient(Client *client);
 
-    void broadcastMsg(std::string ip, std::string msg);
+    void broadcastMsg(const char*,const char*);
 
-    int kickClient(std::string ip);
+    int kickClient(char* );
 
     void sendChatLog(Client *cl);
 
-    Room(Client *ow, std::string _name);
+    Room(Client *ow, char* );
 };
