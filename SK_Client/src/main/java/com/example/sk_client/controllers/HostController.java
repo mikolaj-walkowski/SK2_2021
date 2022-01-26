@@ -1,8 +1,6 @@
 package com.example.sk_client.controllers;
 
 import com.example.sk_client.Klient;
-import com.example.sk_client.controllers.GuestController;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
@@ -10,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 
 public class HostController extends GuestController {
     @FXML Button buttonWyrzuc;
@@ -23,24 +22,31 @@ public class HostController extends GuestController {
         this.IP = IP.substring(IP.indexOf("/")+1);
         this.nazwa = nazwa;
         this.tytul.setText("Pokoj " + nazwa);
-        this.klient = new Klient(IP, czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
-        String inputText = "create "+nazwa;
-        writer.println(inputText);
+        this.klient = Klient.getInstance();
+        this.klient.activate(czat);
+        //this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
+        String inputText = "create "+nazwa+"\0";
+        klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+        //writer.write(inputText);
     }
 
-    @FXML protected void wyrzucUzytkownika(ActionEvent event){
+    @FXML protected void wyrzucUzytkownika(){
         if(wyrzuc.getText() == null || wyrzuc.getText().trim().isEmpty()){
             popup2.showAndWait();
         }
-        else if(wyrzuc.getText().equals(String.valueOf(IP))){
+        else if(wyrzuc.getText().equals(klient.clientSocket.getLocalSocketAddress().toString().substring(1,klient.clientSocket.getLocalSocketAddress().toString().indexOf(':')))){
             popup3.showAndWait();
         }
         else{
             String inputText = this.wyrzuc.getText();
-            inputText = "kick "+inputText;
-            this.writer.println(inputText);
-            this.wyrzuc.clear();
+            inputText = "kick "+inputText+"\0";
+            try {
+                klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+            }catch (Exception  e){
+                e.printStackTrace();
+            }
+//            this.writer.println(inputText);
+//            this.wyrzuc.clear();
         }
     }
 }

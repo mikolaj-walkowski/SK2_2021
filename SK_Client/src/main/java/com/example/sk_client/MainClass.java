@@ -2,11 +2,9 @@ package com.example.sk_client;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import javafx.stage.WindowEvent;
 
 import java.io.IOException;
 
@@ -18,12 +16,16 @@ public class MainClass extends Application {
         stage.setTitle("Spook Spook");
         stage.setScene(scene);
         stage.show();
-        stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
-            @Override
-            public void handle(WindowEvent windowEvent) {
-                Platform.exit();
-                System.exit(0);
+        stage.setOnCloseRequest(windowEvent -> {
+            try {
+                if(!(Klient.instance == null)) {
+                    Klient.getInstance().closeSocket();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+            Platform.exit();
+            System.exit(0);
         });
     }
 

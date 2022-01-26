@@ -9,46 +9,44 @@ import java.io.IOException;
 import java.net.Socket;
 
 public class Klient {
+    static Klient instance;
     Integer port = 4200;
     String IP;
     WaitForMessage waitForMessage;
-    TextArea receive;
-    Socket clientSocket = null;
+    public Socket clientSocket = null;
     Thread thread;
     Alert popup = new Alert(Alert.AlertType.ERROR,"Serwer nie odpowiada lub jest wylaczony!", ButtonType.OK);
 
-    public Klient(String host, TextArea receive) {
-        this.IP = host;
-        this.receive = receive;
-        activate();
-    }
-
-    public Klient(String host){
-        this.IP = host;
-        this.receive = null;
-        activate();
-    }
-
-    public Socket getSocket(){
-        if(clientSocket == null) {
-            try {
-                clientSocket = new Socket(IP, port);
-            } catch (IOException e) {
-                popup.showAndWait();
-            }
+    public Klient() {
+        this.IP = "192.168.55.112";
+        try {
+            clientSocket = new Socket(IP, port);
+        } catch (IOException e) {
+            popup.showAndWait();
         }
-        return clientSocket;
+    }
+
+    static public Klient getInstance(){
+        if(instance == null) {
+            instance = new Klient();
+        }
+        return instance;
+    }
+
+    public void stopListening(){
+        thread.interrupt();
     }
 
     public void closeSocket() throws IOException {
         thread.interrupt();
-        clientSocket.close();
+        if (!clientSocket.isClosed()) {
+            clientSocket.close();
+        }
     }
 
-    public void activate(){
+    public void activate(TextArea ta){
         try {
-            Socket help = getSocket();
-            waitForMessage = new WaitForMessage(help, receive, IP);
+            waitForMessage = new WaitForMessage(clientSocket, ta);
             thread = new Thread(waitForMessage);
             thread.start();
         } catch (IOException e) {

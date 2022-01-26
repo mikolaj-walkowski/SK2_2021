@@ -13,7 +13,8 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 public class GuestController {
     @FXML Button buttonWyslij;
@@ -26,31 +27,37 @@ public class GuestController {
     PrintWriter writer;
 
     public void setNazwa(String nazwa) throws IOException {
-        this.IP = String.valueOf(InetAddress.getLocalHost());
-        this.IP = IP.substring(IP.indexOf("/")+1);
+        this.IP = "192.168.55.104";
+        //this.IP = IP.substring(IP.indexOf("/")+1);
         this.nazwa = nazwa;
         this.tytul.setText("Pokoj " + nazwa);
-        this.klient = new Klient(IP, czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.getSocket().getOutputStream()), true);
-        String inputText = "join "+nazwa;
-        writer.println(inputText);
+        this.klient = Klient.getInstance();
+//        this.czat = klient.getTextArea();
+        this.klient.activate(czat);
+        String inputText = "join "+nazwa+"\0";
+        klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
     }
 
-    @FXML protected void wyslijWiadomosc(ActionEvent event){
+    @FXML protected void wyslijWiadomosc(){
         if(!(wiadomosc.getText() == null) && !wiadomosc.getText().trim().isEmpty()) {
-            String inputText = this.wiadomosc.getText();
-            String inputSize = "msg_size "+inputText.length();
-            this.writer.println(inputSize);
-            inputText = "msg "+inputText;
-            this.writer.println(inputText);
+            String inputText = "msg "+this.wiadomosc.getText() + "\0";
+            try {
+                klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+            }catch (Exception e){
+                e.printStackTrace();
+            }
             this.wiadomosc.clear();
         }
     }
 
     @FXML protected void toMain(ActionEvent event) throws IOException{
-        writer.println("leave");
-        klient.closeSocket();
-        Parent parent = (Parent) FXMLLoader.load(this.getClass().getResource("/com/example/sk_client/main_page.fxml"));
+        try {
+            klient.clientSocket.getOutputStream().write("leave\0".getBytes(StandardCharsets.US_ASCII));
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        klient.stopListening();
+        Parent parent = FXMLLoader.load(Objects.requireNonNull(this.getClass().getResource("/com/example/sk_client/main_page.fxml")));
         Scene scene = new Scene(parent);
         Stage stage = (Stage) ((Node)event.getSource()).getScene().getWindow();
         stage.setScene(scene);
