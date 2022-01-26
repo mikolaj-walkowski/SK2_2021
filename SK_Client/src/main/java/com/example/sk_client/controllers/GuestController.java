@@ -13,6 +13,7 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class GuestController {
@@ -33,23 +34,28 @@ public class GuestController {
         this.klient = Klient.getInstance();
 //        this.czat = klient.getTextArea();
         this.klient.activate(czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
-        String inputText = "join "+nazwa;
-        writer.println(inputText);
+        String inputText = "join "+nazwa+"\0";
+        klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
     }
 
     @FXML protected void wyslijWiadomosc(){
         if(!(wiadomosc.getText() == null) && !wiadomosc.getText().trim().isEmpty()) {
-            String inputText = "msg "+this.wiadomosc.getText();
-            String inputSize = "msg_size "+inputText.length()+1;
-            this.writer.println(inputSize);
-            this.writer.println(inputText);
+            String inputText = "msg "+this.wiadomosc.getText() + "\0";
+            try {
+                klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+            }catch (Exception e){
+                e.printStackTrace();
+            }
             this.wiadomosc.clear();
         }
     }
 
     @FXML protected void toMain(ActionEvent event) throws IOException{
-        writer.println("leave");
+        try {
+            klient.clientSocket.getOutputStream().write("leave\0".getBytes(StandardCharsets.US_ASCII));
+        }catch (Exception e){
+            e.printStackTrace();
+        }
         klient.stopListening();
         Parent parent = FXMLLoader.load(Objects.requireNonNull(this.getClass().getResource("/com/example/sk_client/main_page.fxml")));
         Scene scene = new Scene(parent);

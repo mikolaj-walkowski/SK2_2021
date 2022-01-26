@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 
 public class HostController extends GuestController {
     @FXML Button buttonWyrzuc;
@@ -23,9 +24,10 @@ public class HostController extends GuestController {
         this.tytul.setText("Pokoj " + nazwa);
         this.klient = Klient.getInstance();
         this.klient.activate(czat);
-        this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
-        String inputText = "create "+nazwa;
-        writer.println(inputText);
+        //this.writer = new PrintWriter(new OutputStreamWriter(klient.clientSocket.getOutputStream()), true);
+        String inputText = "create "+nazwa+"\0";
+        klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+        //writer.write(inputText);
     }
 
     @FXML protected void wyrzucUzytkownika(){
@@ -37,9 +39,14 @@ public class HostController extends GuestController {
         }
         else{
             String inputText = this.wyrzuc.getText();
-            inputText = "kick "+inputText;
-            this.writer.println(inputText);
-            this.wyrzuc.clear();
+            inputText = "kick "+inputText+"\0";
+            try {
+                klient.clientSocket.getOutputStream().write(inputText.getBytes(StandardCharsets.US_ASCII));
+            }catch (Exception  e){
+                e.printStackTrace();
+            }
+//            this.writer.println(inputText);
+//            this.wyrzuc.clear();
         }
     }
 }

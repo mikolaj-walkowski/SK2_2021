@@ -18,7 +18,7 @@ public class Klient {
     Alert popup = new Alert(Alert.AlertType.ERROR,"Serwer nie odpowiada lub jest wylaczony!", ButtonType.OK);
 
     public Klient() {
-        this.IP = "150.254.32.85";
+        this.IP = "192.168.55.112";
         try {
             clientSocket = new Socket(IP, port);
         } catch (IOException e) {

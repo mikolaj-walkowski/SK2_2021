@@ -27,12 +27,20 @@ public class MainController {
 
     @FXML public void wyrzucenie(Integer co){
         switch (co) {
-            case 1 -> popupOut.showAndWait();
-            case 2 -> popupTimeout.showAndWait();
-            case 3 -> popupFailedJoin.showAndWait();
-            case 4 -> popupFailedCreate.showAndWait();
-            default -> {
-            }
+            case 1:
+                popupOut.showAndWait();
+                break;
+            case 2:
+                popupTimeout.showAndWait();
+                break;
+            case 3:
+                popupFailedJoin.showAndWait();
+                break;
+            case 4:
+                popupFailedCreate.showAndWait();
+                break;
+            default:
+                break;
         }
     }
 
@@ -46,6 +54,7 @@ public class MainController {
                 Parent parent = loader.load();
                 HostController controller = loader.getController();
                 controller.setNazwa(adres.getText());
+
                 Scene scene = new Scene(parent);
                 Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
                 stage.setScene(scene);
