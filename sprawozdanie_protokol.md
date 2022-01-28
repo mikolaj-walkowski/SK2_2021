@@ -6,10 +6,10 @@ Legenda:
 - [s/noerr] - odpowiedź serwera w przypadku powodzenia
 
 Wysłanie wiadomości serwer -> klient:
-- [s]msg %nick %treść
+- [s] msg %nick %treść
 
 Wysłanie wiadomości klient -> serwer:
-- [k]msg %treść
+- [k] msg %treść
 
 Wyrzucanie z pokoju admin -> serwer
 - [k] kick %nick
