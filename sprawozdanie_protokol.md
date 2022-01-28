@@ -1,12 +1,18 @@
 ## Protokół:
+Legenda:
+[s] - wiadomość od serwera
+[k] - wiadomość od klienta
+[s/err] - odpowiedź serwera w przypadku niepowodzenia
+[s/noerr] - odpowiedź serwera w przypadku powodzenia
+
 Wysłanie wiadomości serwer -> klient:
-- [s]msg %ip %treść - wiadomość
+- [s]msg %nick %treść
 
 Wysłanie wiadomości klient -> serwer:
-- [k]msg %treść - wiadomość
+- [k]msg %treść
 
 Wyrzucanie z pokoju admin -> serwer
-- [k] kick %ip
+- [k] kick %nick
 - [s/err] failed kick
 - [s/noerr] success kick
 
@@ -28,4 +34,4 @@ Tworzenie pokoju:
 - [s/err] failed create
 - [s/noerr] success
 
-Wszystkie wiadomości/polecenia kończą się znakiem null w ASCII ('/0').
+Wszystkie wiadomości/polecenia kończą się znakiem null w ASCII ('\0').
