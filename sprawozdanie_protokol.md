@@ -1,9 +1,9 @@
 ## Protokół:
 Legenda:
-[s] - wiadomość od serwera
-[k] - wiadomość od klienta
-[s/err] - odpowiedź serwera w przypadku niepowodzenia
-[s/noerr] - odpowiedź serwera w przypadku powodzenia
+- [s] - wiadomość od serwera
+- [k] - wiadomość od klienta
+- [s/err] - odpowiedź serwera w przypadku niepowodzenia
+- [s/noerr] - odpowiedź serwera w przypadku powodzenia
 
 Wysłanie wiadomości serwer -> klient:
 - [s]msg %nick %treść
