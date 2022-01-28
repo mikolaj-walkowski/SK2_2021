@@ -16,7 +16,7 @@ public:
 
     void addClient(Client *cl);
 
-    void removeClient(Client *client);
+    void removeClient(Client *);
 
     void broadcastMsg(const char*,const char*);
 

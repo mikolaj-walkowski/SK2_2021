@@ -32,6 +32,8 @@ void Room::removeClient(Client *client)
             sprintf(msg,"%s left", tmp);
             roomMngMsg(msg);
             free(msg);
+            room_clients.erase(itr);
+            printf("\t Room %s\n\t\t Curr Size %d\n",name,room_clients.size());
             return;
         }
     }
@@ -41,14 +43,15 @@ void Room::broadcastMsg(const char* sender,const char* msg)
 {
     printf("\tRoom %s brodcasting msg %s from %s\n",name,sender, msg);
     int msgLen;
-    char* cmsg = createBuffer(&msgLen,3,sender,msg,"msg  ");
+    char* cmsg = createBuffer(&msgLen,3,sender,msg,"msg \n\t");
     sprintf(cmsg,"msg %s\n\t%s",sender,msg);
     chatLog.push_back(cmsg);
     for (auto itr : room_clients)
     {
             if (write(itr->fd, cmsg, msgLen) == -1)
             {
-                perror("Couldnt write to socket");
+                printf("ERROR:Socket fd - %d", itr->fd);
+                perror("ERROR:Couldnt write to socket");
             }
     }
 }
@@ -56,10 +59,11 @@ void Room::broadcastMsg(const char* sender,const char* msg)
 int Room::kickClient(char* nick)
 {
     for (auto itr = room_clients.begin(); itr != room_clients.end(); itr++)
-        if ((*itr)->nick == nick)
+        if (strcmp((*itr)->nick,nick) == 0)
         {
             if (write((*itr)->fd, "kick", 5) == -1)
             {
+                printf("\tfd: %d\n", (*itr)->fd);
                 perror("Couldn't write to socket");
                 return 1;
             }
@@ -68,6 +72,7 @@ int Room::kickClient(char* nick)
             sprintf(cmsg, "Kicked %s", nick);
             roomMngMsg(cmsg);
             free(cmsg);
+            printf("\t Room %s\n\t\t Curr Size %d\n",name,room_clients.size());
             return 0;
         }
     return 1;

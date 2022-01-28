@@ -120,7 +120,6 @@ void hc_kick(Client *client, char *buff)
                 perror("Couldnt write to socket");
             }
         }
-        free(buff+5);
     }
 }
 
@@ -308,7 +307,7 @@ int main(int argc, char *argv[])
                 }
                 clients.erase(events[i].data.fd);
                 close(client->fd);
-                printf("Deleted client ip: %s\n", client->nick);
+                printf("Deleted client nick: %s\n", client->nick);
                 delete client;
             }
             else
